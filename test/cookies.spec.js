@@ -14,15 +14,44 @@
  * limitations under the License.
  */
 
+const {TestServer} = require('../utils/testserver/index');
+const path = require('path');
+const puppeteer = require('../');
+const expect = require('expect');
+const {getTestState} = require('./setup');
+
+describe('Page tests in Mocha land', () => {
+  itFailsFirefox('should return no cookies in pristine browser context', async() => {
+    const {page, server} = getTestState();
+    await page.goto(server.EMPTY_PAGE);
+    expect(await page.cookies()).toEqual([]);
+  });
+
+  it('should properly report httpOnly cookie', async() => {
+    const {page, server} = getTestState();
+    server.setRoute('/empty.html', (req, res) => {
+      res.setHeader('Set-Cookie', ';HttpOnly; Path=/');
+      res.end();
+    });
+    await page.goto(server.EMPTY_PAGE);
+    const cookies = await page.cookies();
+    expect(cookies.length).toBe(1);
+    expect(cookies[0].httpOnly).toBe(true);
+  });
+
+});
+
 module.exports.addTests = function({testRunner, expect}) {
   const {describe, xdescribe, fdescribe} = testRunner;
   const {it, fit, xit, it_fails_ffox} = testRunner;
   const {beforeAll, beforeEach, afterAll, afterEach} = testRunner;
 
   describe('Page.cookies', function() {
-    it('should return no cookies in pristine browser context', async({page, server}) => {
-      await page.goto(server.EMPTY_PAGE);
-      expect(await page.cookies()).toEqual([]);
+    fit('should return no cookies in pristine browser context', async() => {
+      const server = setupServer();
+      const puppeteer = require('../index');
+      await puppeteer.page.goto(server.EMPTY_PAGE);
+      expect(await puppeteer.page.cookies()).toEqual([]);
     });
     it_fails_ffox('should get a cookie', async({page, server}) => {
       await page.goto(server.EMPTY_PAGE);
