@@ -50,8 +50,16 @@ if (process.argv.some(part => part.includes('mocha'))) {
   };
 
   before(async() => {
+    const defaultBrowserOptions = {
+      handleSIGINT: false,
+      executablePath: process.env.BINARY,
+      slowMo: false,
+      headless: isHeadless,
+      dumpio: !!process.env.DUMPIO,
+    };
+
     state.puppeteer = puppeteer;
-    state.browser = await puppeteer.launch();
+    state.browser = await puppeteer.launch(defaultBrowserOptions);
     state.server = await setupServer();
     state.isFirefox = isFirefox;
     state.isChrome = isChrome;
@@ -64,8 +72,24 @@ if (process.argv.some(part => part.includes('mocha'))) {
     state.page = await state.context.newPage();
   });
 
+  afterEach(async() => {
+    /* some tests deliberately clear out the pre-built context that we create
+     * and if they do that we don't have a context to close
+     * so this is wrapped in a try - and if it errors we don't need
+     * to do anything
+     */
+    try {
+      await state.context.close();
+      state.context = null;
+      state.page = null;
+    } catch (e) {
+      // do nothing - see larger comment above
+    }
+  });
+
   after(async() => {
     await state.browser.close();
+    state.browser = null;
     await state.server.stop();
   });
 }
