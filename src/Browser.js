@@ -25,12 +25,11 @@ class Browser extends EventEmitter {
    * @param {!Puppeteer.Connection} connection
    * @param {!Array<string>} contextIds
    * @param {boolean} ignoreHTTPSErrors
-   * @param {?Puppeteer.Viewport} defaultViewport
    * @param {?Puppeteer.ChildProcess} process
    * @param {function()=} closeCallback
    */
-  static async create(connection, contextIds, ignoreHTTPSErrors, defaultViewport, process, closeCallback) {
-    const browser = new Browser(connection, contextIds, ignoreHTTPSErrors, defaultViewport, process, closeCallback);
+  static async create(connection, contextIds, ignoreHTTPSErrors, process, closeCallback) {
+    const browser = new Browser(connection, contextIds, ignoreHTTPSErrors, process, closeCallback);
     await connection.send('Target.setDiscoverTargets', {discover: true});
     return browser;
   }
@@ -39,14 +38,12 @@ class Browser extends EventEmitter {
    * @param {!Puppeteer.Connection} connection
    * @param {!Array<string>} contextIds
    * @param {boolean} ignoreHTTPSErrors
-   * @param {?Puppeteer.Viewport} defaultViewport
    * @param {?Puppeteer.ChildProcess} process
    * @param {(function():Promise)=} closeCallback
    */
-  constructor(connection, contextIds, ignoreHTTPSErrors, defaultViewport, process, closeCallback) {
+  constructor(connection, contextIds, ignoreHTTPSErrors, process, closeCallback) {
     super();
     this._ignoreHTTPSErrors = ignoreHTTPSErrors;
-    this._defaultViewport = defaultViewport;
     this._process = process;
     this._screenshotTaskQueue = new TaskQueue();
     this._connection = connection;
@@ -113,7 +110,7 @@ class Browser extends EventEmitter {
     const {browserContextId} = targetInfo;
     const context = (browserContextId && this._contexts.has(browserContextId)) ? this._contexts.get(browserContextId) : this._defaultContext;
 
-    const target = new Target(targetInfo, context, () => this._connection.createSession(targetInfo), this._ignoreHTTPSErrors, this._defaultViewport, this._screenshotTaskQueue);
+    const target = new Target(targetInfo, context, () => this._connection.createSession(targetInfo), this._ignoreHTTPSErrors, this._screenshotTaskQueue);
     assert(!this._targets.has(event.targetInfo.targetId), 'Target should not exist before targetCreated');
     this._targets.set(event.targetInfo.targetId, target);
 
@@ -310,7 +307,10 @@ class BrowserContext extends EventEmitter {
   async pages() {
     const pages = await Promise.all(
         this.targets()
-            .filter(target => target.type() === 'page')
+            .filter(target => {
+              const t = target.type();
+              return t === 'page' || t === 'background_page' || t === 'app' || t === 'webview'; 
+            })
             .map(target => target.page())
     );
     return pages.filter(page => !!page);

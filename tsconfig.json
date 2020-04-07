@@ -2,6 +2,7 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
+    "module": "commonjs",
     "outDir": "./lib",
     "target": "ESNext"
   },

@@ -37,15 +37,12 @@ class Page extends EventEmitter {
    * @param {!Puppeteer.CDPSession} client
    * @param {!Puppeteer.Target} target
    * @param {boolean} ignoreHTTPSErrors
-   * @param {?Puppeteer.Viewport} defaultViewport
    * @param {!Puppeteer.TaskQueue} screenshotTaskQueue
    * @return {!Promise<!Page>}
    */
-  static async create(client, target, ignoreHTTPSErrors, defaultViewport, screenshotTaskQueue) {
+  static async create(client, target, ignoreHTTPSErrors, screenshotTaskQueue) {
     const page = new Page(client, target, ignoreHTTPSErrors, screenshotTaskQueue);
     await page._initialize();
-    if (defaultViewport)
-      await page.setViewport(defaultViewport);
     return page;
   }
 

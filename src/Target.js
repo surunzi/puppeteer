@@ -24,16 +24,14 @@ class Target {
    * @param {!Puppeteer.BrowserContext} browserContext
    * @param {!function():!Promise<!Puppeteer.CDPSession>} sessionFactory
    * @param {boolean} ignoreHTTPSErrors
-   * @param {?Puppeteer.Viewport} defaultViewport
    * @param {!Puppeteer.TaskQueue} screenshotTaskQueue
    */
-  constructor(targetInfo, browserContext, sessionFactory, ignoreHTTPSErrors, defaultViewport, screenshotTaskQueue) {
+  constructor(targetInfo, browserContext, sessionFactory, ignoreHTTPSErrors, screenshotTaskQueue) {
     this._targetInfo = targetInfo;
     this._browserContext = browserContext;
     this._targetId = targetInfo.targetId;
     this._sessionFactory = sessionFactory;
     this._ignoreHTTPSErrors = ignoreHTTPSErrors;
-    this._defaultViewport = defaultViewport;
     this._screenshotTaskQueue = screenshotTaskQueue;
     /** @type {?Promise<!Puppeteer.Page>} */
     this._pagePromise = null;
@@ -69,9 +67,9 @@ class Target {
    * @return {!Promise<?Page>}
    */
   async page() {
-    if ((this._targetInfo.type === 'page' || this._targetInfo.type === 'background_page') && !this._pagePromise) {
+    if ((this._targetInfo.type === 'page' || this._targetInfo.type === 'background_page' || this._targetInfo.type === 'app' || this._targetInfo.type === 'webview') && !this._pagePromise) {
       this._pagePromise = this._sessionFactory()
-          .then(client => Page.create(client, this, this._ignoreHTTPSErrors, this._defaultViewport, this._screenshotTaskQueue));
+          .then(client => Page.create(client, this, this._ignoreHTTPSErrors, this._screenshotTaskQueue));
     }
     return this._pagePromise;
   }
@@ -98,11 +96,11 @@ class Target {
   }
 
   /**
-   * @return {"page"|"background_page"|"service_worker"|"shared_worker"|"other"|"browser"}
+   * @return {"page"|"background_page"|"service_worker"|"shared_worker"|"other"|"browser"|"app"|"webview"}
    */
   type() {
     const type = this._targetInfo.type;
-    if (type === 'page' || type === 'background_page' || type === 'service_worker' || type === 'shared_worker' || type === 'browser')
+    if (type === 'page' || type === 'background_page' || type === 'service_worker' || type === 'shared_worker' || type === 'browser' || type === 'app' || type === 'webview')
       return type;
     return 'other';
   }

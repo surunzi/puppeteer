@@ -18,6 +18,9 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const URL = require('url');
+const waitUntil = require('licia/waitUntil');
+const getPort = require('licia/getPort');
+const got = require('got').default;
 const removeFolder = require('rimraf');
 const childProcess = require('child_process');
 const BrowserFetcher = require('./BrowserFetcher');
@@ -152,7 +155,7 @@ class BrowserRunner {
   }
 
   /**
-   * @param {!({usePipe?: boolean, timeout: number, slowMo: number, preferredRevision: string})} options
+   * @param {!({usePipe?: boolean, timeout: number, slowMo: number, preferredRevision: string, port?: number})} options
    *
    * @return {!Promise<!Connection>}
    */
@@ -161,10 +164,11 @@ class BrowserRunner {
       usePipe,
       timeout,
       slowMo,
-      preferredRevision
+      preferredRevision,
+      port,
     } = options;
     if (!usePipe) {
-      const browserWSEndpoint = await waitForWSEndpoint(this.proc, timeout, preferredRevision);
+      const browserWSEndpoint = await waitForWSEndpoint(this.proc, timeout, preferredRevision, port);
       const transport = await WebSocketTransport.create(browserWSEndpoint);
       this.connection = new Connection(browserWSEndpoint, transport, slowMo);
     } else {
@@ -198,7 +202,7 @@ class ChromeLauncher {
    */
   async launch(options = {}) {
     const {
-      ignoreDefaultArgs = false,
+      ignoreDefaultArgs = true,
       args = [],
       dumpio = false,
       executablePath = null,
@@ -208,7 +212,6 @@ class ChromeLauncher {
       handleSIGTERM = true,
       handleSIGHUP = true,
       ignoreHTTPSErrors = false,
-      defaultViewport = {width: 800, height: 600},
       slowMo = 0,
       timeout = 30000
     } = options;
@@ -224,8 +227,9 @@ class ChromeLauncher {
 
     let temporaryUserDataDir = null;
 
+    const port = await getPort();
     if (!chromeArguments.some(argument => argument.startsWith('--remote-debugging-')))
-      chromeArguments.push(pipe ? '--remote-debugging-pipe' : '--remote-debugging-port=0');
+      chromeArguments.push(pipe ? '--remote-debugging-pipe' : `--remote-debugging-port=${port}`);
     if (!chromeArguments.some(arg => arg.startsWith('--user-data-dir'))) {
       temporaryUserDataDir = await mkdtempAsync(profilePath);
       chromeArguments.push(`--user-data-dir=${temporaryUserDataDir}`);
@@ -244,9 +248,11 @@ class ChromeLauncher {
     runner.start({handleSIGHUP, handleSIGTERM, handleSIGINT, dumpio, env, pipe: usePipe});
 
     try {
-      const connection = await runner.setupConnection({usePipe, timeout, slowMo, preferredRevision: this._preferredRevision});
-      const browser = await Browser.create(connection, [], ignoreHTTPSErrors, defaultViewport, runner.proc, runner.close.bind(runner));
-      await browser.waitForTarget(t => t.type() === 'page');
+      const connection = await runner.setupConnection({usePipe, timeout, slowMo, preferredRevision: this._preferredRevision, port});
+      const browser = await Browser.create(connection, [], ignoreHTTPSErrors, runner.proc, runner.close.bind(runner));
+      await browser.waitForTarget(t => {
+        return t.type() === 'page' || t.type() === 'background_page'
+      });
       return browser;
     } catch (error) {
       runner.kill();
@@ -286,7 +292,7 @@ class ChromeLauncher {
     ];
     const {
       devtools = false,
-      headless = !devtools,
+      headless = false,
       args = [],
       userDataDir = null
     } = options;
@@ -330,7 +336,6 @@ class ChromeLauncher {
       browserWSEndpoint,
       browserURL,
       ignoreHTTPSErrors = false,
-      defaultViewport = {width: 800, height: 600},
       transport,
       slowMo = 0,
     } = options;
@@ -350,7 +355,7 @@ class ChromeLauncher {
     }
 
     const {browserContextIds} = await connection.send('Target.getBrowserContexts');
-    return Browser.create(connection, browserContextIds, ignoreHTTPSErrors, defaultViewport, null, () => connection.send('Browser.close').catch(debugError));
+    return Browser.create(connection, browserContextIds, ignoreHTTPSErrors, null, () => connection.send('Browser.close').catch(debugError));
   }
 
 }
@@ -386,7 +391,6 @@ class FirefoxLauncher {
       handleSIGTERM = true,
       handleSIGHUP = true,
       ignoreHTTPSErrors = false,
-      defaultViewport = {width: 800, height: 600},
       slowMo = 0,
       timeout = 30000,
       extraPrefsFirefox = {}
@@ -432,7 +436,7 @@ class FirefoxLauncher {
 
     try {
       const connection = await runner.setupConnection({usePipe: pipe, timeout, slowMo, preferredRevision: this._preferredRevision});
-      const browser = await Browser.create(connection, [], ignoreHTTPSErrors, defaultViewport, runner.proc, runner.close.bind(runner));
+      const browser = await Browser.create(connection, [], ignoreHTTPSErrors, runner.proc, runner.close.bind(runner));
       await browser.waitForTarget(t => t.type() === 'page');
       return browser;
     } catch (error) {
@@ -450,7 +454,6 @@ class FirefoxLauncher {
       browserWSEndpoint,
       browserURL,
       ignoreHTTPSErrors = false,
-      defaultViewport = {width: 800, height: 600},
       transport,
       slowMo = 0,
     } = options;
@@ -470,7 +473,7 @@ class FirefoxLauncher {
     }
 
     const {browserContextIds} = await connection.send('Target.getBrowserContexts');
-    return Browser.create(connection, browserContextIds, ignoreHTTPSErrors, defaultViewport, null, () => connection.send('Browser.close').catch(debugError));
+    return Browser.create(connection, browserContextIds, ignoreHTTPSErrors, null, () => connection.send('Browser.close').catch(debugError));
   }
 
   /**
@@ -738,12 +741,11 @@ class FirefoxLauncher {
  * @param {string} preferredRevision
  * @return {!Promise<string>}
  */
-function waitForWSEndpoint(browserProcess, timeout, preferredRevision) {
+function waitForWSEndpoint(browserProcess, timeout, preferredRevision, port = 0) {
   return new Promise((resolve, reject) => {
     const rl = readline.createInterface({ input: browserProcess.stderr });
     let stderr = '';
     const listeners = [
-      helper.addEventListener(rl, 'line', onLine),
       helper.addEventListener(rl, 'close', () => onClose()),
       helper.addEventListener(browserProcess, 'exit', () => onClose()),
       helper.addEventListener(browserProcess, 'error', error => onClose(error))
@@ -769,17 +771,17 @@ function waitForWSEndpoint(browserProcess, timeout, preferredRevision) {
       reject(new TimeoutError(`Timed out after ${timeout} ms while trying to connect to the browser! Only Chrome at revision r${preferredRevision} is guaranteed to work.`));
     }
 
-    /**
-     * @param {string} line
-     */
-    function onLine(line) {
-      stderr += line + '\n';
-      const match = line.match(/^DevTools listening on (ws:\/\/.*)$/);
-      if (!match)
-        return;
+    let WSEndpoint = '';
+    waitUntil(async () => {
+      try {
+        const result = await got(`http://127.0.0.1:${port}/json/version`).json();
+        WSEndpoint = result.webSocketDebuggerUrl;
+        return true;
+      } catch (e) {}     
+    }, timeout).then(() => {
       cleanup();
-      resolve(match[1]);
-    }
+      resolve(WSEndpoint);
+    })
 
     function cleanup() {
       if (timeoutId)
@@ -895,7 +897,6 @@ function Launcher(projectRoot, preferredRevision, isPuppeteerCore, product) {
 /**
  * @typedef {Object} Launcher.BrowserOptions
  * @property {boolean=} ignoreHTTPSErrors
- * @property {(?Puppeteer.Viewport)=} defaultViewport
  * @property {number=} slowMo
  */
 
