@@ -26,6 +26,8 @@ const setupServer = async() => {
 
 exports.getTestState = () => state;
 
+const isFirefox = process.env.PRODUCT === 'firefox';
+
 const state = {};
 
 // purposefully global
@@ -38,9 +40,17 @@ if (process.argv.some(part => part.includes('mocha'))) {
       return it(...args);
   };
 
+  global.describeFailsFirefox = (...args) => {
+    if (process.env.PRODUCT === 'firefox')
+      return xdescribe(...args);
+    else
+      return describe(...args);
+  };
+
   before(async() => {
     state.browser = await puppeteer.launch();
     state.server = await setupServer();
+    state.isFirefox = isFirefox;
   });
 
   beforeEach(async() => {
