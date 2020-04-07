@@ -27,6 +27,8 @@ const setupServer = async() => {
 exports.getTestState = () => state;
 
 const isFirefox = process.env.PRODUCT === 'firefox';
+const isHeadless = (process.env.HEADLESS || 'true').trim().toLowerCase() === 'true';
+const isChrome = process.env.PRODUCT === 'Chromium';
 
 const state = {};
 
@@ -48,9 +50,12 @@ if (process.argv.some(part => part.includes('mocha'))) {
   };
 
   before(async() => {
+    state.puppeteer = puppeteer;
     state.browser = await puppeteer.launch();
     state.server = await setupServer();
     state.isFirefox = isFirefox;
+    state.isChrome = isChrome;
+    state.isHeadless = isHeadless;
   });
 
   beforeEach(async() => {
