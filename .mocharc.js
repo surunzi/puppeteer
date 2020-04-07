@@ -1,3 +1,5 @@
 module.exports = {
-  files: './test/setup.js'
+  file: ['./test/mocha-utils.js'],
+  spec: 'test/*.mocha.spec.js',
+  reporter: 'dot',
 }

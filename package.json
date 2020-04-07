@@ -23,6 +23,7 @@
     "lint": "([ \"$CI\" = true ] && eslint --quiet -f codeframe . || eslint .) && npm run tsc && npm run doc",
     "doc": "node utils/doclint/cli.js",
     "coverage": "cross-env COVERAGE=true npm run unit",
+    "mocha-tests": "mocha --config .mocharc.js",
     "tsc": "tsc --version && tsc -p . && cp src/protocol.d.ts lib/ && cp src/externs.d.ts lib/",
     "apply-next-version": "node utils/apply_next_version.js",
     "bundle": "npm run tsc && npx browserify -r ./index.js:puppeteer -o utils/browser/puppeteer-web.js",

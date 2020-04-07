@@ -2,13 +2,6 @@ const {TestServer} = require('../utils/testserver/index');
 const path = require('path');
 const puppeteer = require('../');
 
-global.itFailsFirefox = (...args) => {
-  if (process.env.PRODUCT === 'firefox')
-    return xit(...args);
-  else
-    return it(...args);
-};
-
 const setupServer = async() => {
   const assetsPath = path.join(__dirname, 'assets');
   const cachedPath = path.join(__dirname, 'assets', 'cached');
@@ -36,19 +29,28 @@ exports.getTestState = () => state;
 const state = {};
 
 // purposefully global
+if (process.argv.some(part => part.includes('mocha'))) {
 
-before(async() => {
-  state.browser = await puppeteer.launch();
-  state.server = await setupServer();
-});
+  global.itFailsFirefox = (...args) => {
+    if (process.env.PRODUCT === 'firefox')
+      return xit(...args);
+    else
+      return it(...args);
+  };
 
-beforeEach(async() => {
-  state.server.reset();
-  state.context = await state.browser.createIncognitoBrowserContext();
-  state.page = await state.context.newPage();
-});
+  before(async() => {
+    state.browser = await puppeteer.launch();
+    state.server = await setupServer();
+  });
 
-after(async() => {
-  await state.browser.close();
-  await state.server.stop();
-});
+  beforeEach(async() => {
+    state.server.reset();
+    state.context = await state.browser.createIncognitoBrowserContext();
+    state.page = await state.context.newPage();
+  });
+
+  after(async() => {
+    await state.browser.close();
+    await state.server.stop();
+  });
+}

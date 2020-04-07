@@ -126,7 +126,6 @@ module.exports.addTests = ({testRunner, product, puppeteerPath}) => {
       require('./accessibility.spec.js').addTests(testOptions);
       require('./browser.spec.js').addTests(testOptions);
       require('./click.spec.js').addTests(testOptions);
-      require('./cookies.spec.js').addTests(testOptions);
       require('./dialog.spec.js').addTests(testOptions);
       require('./elementhandle.spec.js').addTests(testOptions);
       require('./emulation.spec.js').addTests(testOptions);
