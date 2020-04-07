@@ -26,9 +26,11 @@ const setupServer = async() => {
 
 exports.getTestState = () => state;
 
-const isFirefox = process.env.PRODUCT === 'firefox';
+const product = process.env.PRODUCT || 'Chromium';
+
 const isHeadless = (process.env.HEADLESS || 'true').trim().toLowerCase() === 'true';
-const isChrome = process.env.PRODUCT === 'Chromium';
+const isFirefox = product === 'firefox';
+const isChrome = product === 'Chromium';
 
 const state = {};
 
@@ -36,16 +38,21 @@ const state = {};
 if (process.argv.some(part => part.includes('mocha'))) {
 
   global.itFailsFirefox = (...args) => {
-    if (process.env.PRODUCT === 'firefox')
+    if (isFirefox)
       return xit(...args);
     else
       return it(...args);
   };
 
   global.describeFailsFirefox = (...args) => {
-    if (process.env.PRODUCT === 'firefox')
+    if (isFirefox)
       return xdescribe(...args);
     else
+      return describe(...args);
+  };
+
+  global.describeChromeOnly = (...args) => {
+    if (isChrome)
       return describe(...args);
   };
 
